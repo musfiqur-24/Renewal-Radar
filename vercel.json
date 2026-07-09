@@ -1,16 +1,5 @@
 {
   "version": 2,
-  "name": "renewal-radar-backend",
-  "functions": {
-    "backend/api/**/*.js": {
-      "runtime": "nodejs20.x"
-    }
-  },
-  "rewrites": [
-    { "source": "/api/oauth/callback", "destination": "/backend/api/oauth/callback" },
-    { "source": "/api/webhook", "destination": "/backend/api/webhook" },
-    { "source": "/api/workflow-action", "destination": "/backend/api/workflow-action" }
-  ],
   "headers": [
     {
       "source": "/api/(.*)",
