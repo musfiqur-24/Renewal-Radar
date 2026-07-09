@@ -9,7 +9,7 @@
       "type": "oauth",
       "redirectUrls": [
         "http://localhost:3000/oauth/callback",
-        "https://renewal-radar.vercel.app/api/oauth/callback"
+        "https://renewal-radar-roan.vercel.app/api/oauth/callback"
       ],
       "requiredScopes": [
         "oauth",
@@ -26,7 +26,7 @@
     "permittedUrls": {
       "fetch": [
         "https://api.hubapi.com",
-        "https://renewal-radar.vercel.app"
+        "https://renewal-radar-roan.vercel.app"
       ],
       "iframe": [],
       "img": []

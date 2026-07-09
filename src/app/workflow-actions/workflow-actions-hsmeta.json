@@ -2,7 +2,7 @@
   "uid": "renewal_radar_workflow_action",
   "type": "workflow-action",
   "config": {
-    "actionUrl": "https://renewal-radar.vercel.app/api/workflow-action",
+    "actionUrl": "https://renewal-radar-roan.vercel.app/api/workflow-action",
     "isPublished": true,
     "supportedClients": [
       {
