@@ -1,0 +1,167 @@
+{
+  "uid": "renewal_radar_app_object",
+  "type": "app-object",
+  "config": {
+    "name": "RENEWAL_SCORE",
+    "description": "Stores account health and renewal risk scores for HubSpot companies.",
+    "singularForm": "Renewal Score",
+    "pluralForm": "Renewal Scores",
+    "appPrefix": "RenewalRadar",
+
+    "primaryDisplayLabelPropertyName": "company_name",
+
+    "secondaryDisplayLabelPropertyNames": [
+      "score",
+      "risk_level"
+    ],
+
+    "properties": [
+      {
+        "name": "company_id",
+        "label": "Company ID",
+        "type": "string",
+        "fieldType": "text"
+      },
+      {
+        "name": "company_name",
+        "label": "Company Name",
+        "type": "string",
+        "fieldType": "text"
+      },
+      {
+        "name": "score",
+        "label": "Renewal Score",
+        "type": "number",
+        "fieldType": "number",
+        "groupName": "score_info"
+      },
+      {
+        "name": "risk_level",
+        "label": "Risk Level",
+        "type": "enumeration",
+        "fieldType": "select",
+        "groupName": "score_info",
+        "options": [
+          {
+            "label": "Healthy",
+            "value": "healthy",
+            "displayOrder": 0
+          },
+          {
+            "label": "Watch",
+            "value": "watch",
+            "displayOrder": 1
+          },
+          {
+            "label": "At Risk",
+            "value": "at_risk",
+            "displayOrder": 2
+          }
+        ]
+      },
+      {
+        "name": "trend",
+        "label": "Trend",
+        "type": "enumeration",
+        "fieldType": "select",
+        "groupName": "score_info",
+        "options": [
+          {
+            "label": "Improving",
+            "value": "up",
+            "displayOrder": 0
+          },
+          {
+            "label": "Stable",
+            "value": "flat",
+            "displayOrder": 1
+          },
+          {
+            "label": "Declining",
+            "value": "down",
+            "displayOrder": 2
+          }
+        ]
+      },
+      {
+        "name": "open_tickets",
+        "label": "Open Tickets",
+        "type": "number",
+        "fieldType": "number",
+        "groupName": "risk_factors"
+      },
+      {
+        "name": "overdue_deals",
+        "label": "Overdue Deals",
+        "type": "number",
+        "fieldType": "number",
+        "groupName": "risk_factors"
+      },
+      {
+        "name": "engagement_count",
+        "label": "Engagement Count (90 Days)",
+        "type": "number",
+        "fieldType": "number",
+        "groupName": "risk_factors"
+      },
+      {
+        "name": "days_since_last_engagement",
+        "label": "Days Since Last Engagement",
+        "type": "number",
+        "fieldType": "number",
+        "groupName": "risk_factors"
+      },
+      {
+        "name": "renewal_date",
+        "label": "Renewal Date",
+        "type": "date",
+        "fieldType": "date",
+        "groupName": "risk_factors"
+      },
+      {
+        "name": "last_calculated",
+        "label": "Last Calculated",
+        "type": "date",
+        "fieldType": "date",
+        "groupName": "score_info"
+      },
+      {
+        "name": "factor_breakdown",
+        "label": "Factor Breakdown",
+        "type": "string",
+        "fieldType": "textarea",
+        "groupName": "risk_factors"
+      }
+    ],
+
+    "propertyGroups": [
+      {
+        "name": "score_info",
+        "label": "Score Information"
+      },
+      {
+        "name": "risk_factors",
+        "label": "Risk Factors"
+      }
+    ],
+
+    "defaultCreateFormFields": [
+      {
+        "propertyName": "company_name",
+        "isRequired": true,
+        "isRemovable": false
+      },
+      {
+        "propertyName": "company_id",
+        "isRequired": true,
+        "isRemovable": false
+      }
+    ],
+
+    "settings": {
+      "hasRecordPage": false,
+      "allowsUserCreatedRecords": false,
+      "hasEngagements": false
+    }
+  }
+}

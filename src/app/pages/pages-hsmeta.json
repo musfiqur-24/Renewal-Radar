@@ -1,0 +1,7 @@
+{
+  "uid": "renewal_radar_page",
+  "type": "page",
+  "config": {
+    "entrypoint": "/app/pages/Pages.tsx"
+  }
+}

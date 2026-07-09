@@ -1,0 +1,27 @@
+{
+  "version": 2,
+  "name": "renewal-radar-backend",
+  "functions": {
+    "api/**/*.js": {
+      "runtime": "nodejs20.x"
+    }
+  },
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/$1",
+      "headers": {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization"
+      }
+    }
+  ],
+  "env": {
+    "CLIENT_ID": "@client_id",
+    "CLIENT_SECRET": "@client_secret",
+    "REDIRECT_URI": "@redirect_uri",
+    "HUBSPOT_PORTAL_ID": "@hubspot_portal_id",
+    "WEBHOOK_SECRET": "@webhook_secret"
+  }
+}

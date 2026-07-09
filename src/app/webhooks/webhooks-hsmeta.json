@@ -1,0 +1,37 @@
+{
+  "uid": "renewal_radar_webhooks",
+  "type": "webhooks",
+  "config": {
+    "settings": {
+      "targetUrl": "https://renewal-radar.vercel.app/api/webhook",
+      "maxConcurrentRequests": 10
+    },
+    "subscriptions": {
+      "crmObjects": [
+          {
+    "subscriptionType": "object.propertyChange",
+    "propertyName": "dealstage",
+    "objectType": "deal",
+    "active": true
+  }
+      ],
+      "legacyCrmObjects": [
+        {
+          "subscriptionType": "contact.propertyChange",
+          "propertyName": "lastname",
+          "active": false
+        },
+        {
+          "subscriptionType": "contact.deletion",
+          "active": false
+        }
+      ],
+      "hubEvents": [
+        {
+          "subscriptionType": "contact.privacyDeletion",
+          "active": false
+        }
+      ]
+    }
+  }
+}

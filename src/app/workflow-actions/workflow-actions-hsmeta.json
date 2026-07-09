@@ -1,0 +1,70 @@
+{
+  "uid": "renewal_radar_workflow_action",
+  "type": "workflow-action",
+  "config": {
+    "actionUrl": "https://renewal-radar.vercel.app/api/workflow-action",
+    "isPublished": true,
+    "supportedClients": [
+      {
+        "client": "WORKFLOWS"
+      }
+    ],
+    "inputFields": [
+      {
+        "typeDefinition": {
+          "name": "message",
+          "type": "string",
+          "fieldType": "textarea"
+        },
+        "supportedValueTypes": [
+          "STATIC_VALUE"
+        ],
+        "isRequired": true
+      },
+      {
+        "typeDefinition": {
+          "name": "priority",
+          "type": "enumeration",
+          "fieldType": "select",
+          "options": [
+            {
+              "value": "high",
+              "label": "High Priority"
+            },
+            {
+              "value": "normal",
+              "label": "Normal Priority"
+            },
+            {
+              "value": "low",
+              "label": "Low Priority"
+            }
+          ]
+        },
+        "supportedValueTypes": [
+          "STATIC_VALUE"
+        ],
+        "isRequired": true
+      }
+    ],
+    "labels": {
+      "en": {
+        "actionName": "Renewal Radar — Send Alert",
+        "actionDescription": "Sends a renewal risk alert notification with a custom message and priority level",
+        "actionCardContent": "Send {{priority}} renewal alert",
+        "inputFieldLabels": {
+          "message": "Alert Message",
+          "priority": "Priority Level"
+        },
+        "inputFieldDescriptions": {
+          "message": "Enter the renewal risk alert message to be sent",
+          "priority": "Select the urgency level of this renewal alert"
+        }
+      }
+    },
+    "objectTypes": [
+      "CONTACT",
+      "COMPANY"
+    ]
+  }
+}

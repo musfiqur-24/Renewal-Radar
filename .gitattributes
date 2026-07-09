@@ -1,0 +1,6 @@
+# Normalize line endings to LF for all text files
+* text=auto eol=lf
+
+# Force binary treatment for lock files
+*.lock binary
+package-lock.json binary
