@@ -2,7 +2,7 @@
   "uid": "renewal_radar_app_object_association",
   "type": "app-object-association",
   "config": {
-    "firstObjectType": "app_object",
+    "firstObjectType": "renewal_radar_app_object",
     "secondObjectType": "COMPANY"
   }
 }

@@ -1,0 +1,21 @@
+{
+  "uid": "renewal_score_calculated",
+  "type": "app-event",
+  "config": {
+    "name": "Renewal score calculated",
+    "description": "Records a Renewal Radar score recalculation for a company.",
+    "headerTemplate": "Renewal score recalculated: {{riskLevel}} ({{score}}/100).",
+    "detailTemplate": "Open tickets: {{openTickets}}. Overdue deals: {{overdueDeals}}.",
+    "objectType": "COMPANY",
+    "properties": [
+      { "name": "score", "label": "Risk score", "description": "Calculated renewal risk score.", "type": "number" },
+      { "name": "riskLevel", "label": "Risk level", "description": "Calculated risk band.", "type": "enumeration", "options": [
+        { "value": "healthy", "label": "Healthy" },
+        { "value": "watch", "label": "Watch" },
+        { "value": "at_risk", "label": "At risk" }
+      ] },
+      { "name": "openTickets", "label": "Open tickets", "description": "Number of open tickets.", "type": "number" },
+      { "name": "overdueDeals", "label": "Overdue deals", "description": "Number of overdue deals.", "type": "number" }
+    ]
+  }
+}

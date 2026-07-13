@@ -8,30 +8,21 @@
     },
     "subscriptions": {
       "crmObjects": [
-          {
-    "subscriptionType": "object.propertyChange",
-    "propertyName": "dealstage",
-    "objectType": "deal",
-    "active": true
-  }
-      ],
-      "legacyCrmObjects": [
         {
-          "subscriptionType": "contact.propertyChange",
-          "propertyName": "lastname",
-          "active": false
+          "subscriptionType": "object.propertyChange",
+          "propertyName": "dealstage",
+          "objectType": "deal",
+          "active": true
         },
         {
-          "subscriptionType": "contact.deletion",
-          "active": false
+          "subscriptionType": "object.propertyChange",
+          "propertyName": "hs_pipeline_stage",
+          "objectType": "ticket",
+          "active": true
         }
       ],
-      "hubEvents": [
-        {
-          "subscriptionType": "contact.privacyDeletion",
-          "active": false
-        }
-      ]
+      "legacyCrmObjects": [],
+      "hubEvents": []
     }
   }
 }

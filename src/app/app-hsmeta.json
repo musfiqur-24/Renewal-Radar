@@ -8,7 +8,6 @@
     "auth": {
       "type": "oauth",
       "redirectUrls": [
-        "http://localhost:3000/oauth/callback",
         "https://renewal-radar-roan.vercel.app/api/oauth/callback"
       ],
       "requiredScopes": [
@@ -17,8 +16,10 @@
         "crm.objects.companies.write",
         "crm.objects.deals.read",
         "crm.objects.deals.write",
+        "tickets",
         "crm.objects.contacts.read",
-        "crm.schemas.companies.read"
+        "crm.schemas.companies.read",
+        "timeline"
       ],
       "optionalScopes": [],
       "conditionallyRequiredScopes": []
