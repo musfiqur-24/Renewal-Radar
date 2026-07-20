@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { Box, Divider, ErrorState, Flex, LoadingSpinner, Tag, Text, hubspot, useExtensionContext } from '@hubspot/ui-extensions';
 import { useAssociations } from '@hubspot/ui-extensions/crm';
 
@@ -27,17 +27,17 @@ const RenewalRadar = () => {
     return rawValue !== undefined && rawValue !== null ? rawValue : fallback;
   };
 
-  const score = value('score', 0);
-  const riskLevel = value('risk_level', 'healthy');
+  const score = Number(value('score', 30));
+  const riskLevel = score >= 80 ? 'healthy' : score >= 60 ? 'watch' : score >= 40 ? 'at_risk' : 'critical';
   const trend = value('trend', 'flat');
-  const riskVariant = riskLevel === 'at_risk' ? 'error' : riskLevel === 'watch' ? 'warning' : 'success';
+  const riskVariant = riskLevel === 'healthy' ? 'success' : riskLevel === 'watch' ? 'warning' : 'error';
 
   return (
     <Box>
       <Flex direction="column" gap="medium">
         <Flex direction="row" justify="between" align="center">
-          <Text format={{ fontWeight: 'bold' }}>Renewal Radar</Text>
-          <Tag variant={riskVariant}>{riskLevel === 'at_risk' ? 'At Risk' : riskLevel === 'watch' ? 'Watch' : 'Healthy'}</Tag>
+          <Text format={{ fontWeight: 'bold' }}>Renewal Health Status</Text>
+          <Tag variant={riskVariant}>{riskLevel === 'critical' ? 'Critical' : riskLevel === 'at_risk' ? 'At Risk' : riskLevel === 'watch' ? 'Watch' : 'Healthy'}</Tag>
         </Flex>
         <Divider />
         <Flex direction="row" justify="between">

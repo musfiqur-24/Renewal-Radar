@@ -6,7 +6,9 @@ const APP_ID = '45236293';
 module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST required' });
   try {
-    await Promise.all((Array.isArray(req.body) ? req.body : []).map(recalculateForEvent));
+    const events = Array.isArray(req.body) ? req.body : [];
+    console.log(`[webhook] Renewal Radar scorer v1 received ${events.length} event(s).`);
+    await Promise.all(events.map(recalculateForEvent));
     return res.status(200).json({ received: true });
   } catch (error) {
     console.error('[webhook] Recalculation failed:', error.message);

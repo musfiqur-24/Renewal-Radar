@@ -55,6 +55,11 @@
             "label": "At Risk",
             "value": "at_risk",
             "displayOrder": 2
+          },
+          {
+            "label": "Critical",
+            "value": "critical",
+            "displayOrder": 3
           }
         ]
       },

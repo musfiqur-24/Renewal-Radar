@@ -10,7 +10,7 @@ const riskLevel = (score: number): RenewalRiskResult['riskLevel'] => score >= 80
 
 export function calculateRenewalRisk(input: ScoringInput, previousScore: number | null = null): RenewalRiskResult {
   const results = [scoreContract(input), scoreEngagement(input), scoreSupport(input), scoreSales(input), scoreBusinessSignals(input)];
-  const score = clamp(50 + results.reduce((total, result) => total + result.scoreContribution, 0));
+  const score = clamp(30 + results.reduce((total, result) => total + result.scoreContribution, 0));
   const delta = previousScore == null ? null : score - previousScore;
   return { score, previousScore, delta, trend: delta == null || Math.abs(delta) < 3 ? 'stable' : delta > 0 ? 'up' : 'down', riskLevel: riskLevel(score), calculatedAt: new Date().toISOString(), factors: results.flatMap((result) => result.factors) };
 }
