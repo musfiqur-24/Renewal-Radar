@@ -1,73 +1,35 @@
-
+const { hubspotRequest } = require('./lib/hubspot.js');
+const { calculateRenewalRisk } = require('./lib/renewal-score.js');
+const SCORE_OBJECT_TYPE = '1-12815455';
+const APP_ID = '45236293';
 
 module.exports = async (req, res) => {
-  // Vercel handles CORS but HubSpot sends POST
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method Not Allowed. Webhooks must be POST requests.' });
+  if (req.method !== 'POST') return res.status(405).json({ error: 'POST required' });
+  try {
+    await Promise.all((Array.isArray(req.body) ? req.body : []).map(recalculateForEvent));
+    return res.status(200).json({ received: true });
+  } catch (error) {
+    console.error('[webhook] Recalculation failed:', error.message);
+    return res.status(500).json({ error: error.message });
   }
-
-  const events = req.body;
-
-  if (!Array.isArray(events) || events.length === 0) {
-    console.warn('[webhook] Received empty or malformed payload');
-    return res.status(400).json({ error: 'Invalid payload — expected an array of events.' });
-  }
-
-  console.log(`[webhook] Received ${events.length} event(s)`);
-
-  // Process each event
-  for (const event of events) {
-    const {
-      subscriptionType,
-      objectId,
-      objectType,
-      propertyName,
-      propertyValue,
-      portalId,
-      occurredAt,
-    } = event;
-
-    console.log(`[webhook] Event: ${subscriptionType} | Object: ${objectType}(${objectId}) | ${propertyName}=${propertyValue} | Portal: ${portalId}`);
-
-    // Route to the appropriate handler
-    if (subscriptionType === 'object.propertyChange' && propertyName === 'dealstage') {
-      await handleDealStageChange({ objectId, propertyValue, portalId, occurredAt });
-    } else {
-      console.log(`[webhook] Unhandled subscription type: ${subscriptionType}`);
-    }
-  }
-
-  // Always respond with 200 quickly so HubSpot doesn't retry
-  return res.status(200).json({ received: true, count: events.length });
 };
 
-/**
- * Handle deal stage change events.
- * When a deal moves stages, we can:
- *   1. Look up the associated company
- *   2. Re-calculate the renewal risk score
- *   3. Update the company's CRM properties
- *
- * @param {object} params
- * @param {string} params.objectId - The Deal's HubSpot ID
- * @param {string} params.propertyValue - The new deal stage ID
- * @param {number} params.portalId - The HubSpot portal ID
- * @param {number} params.occurredAt - Unix timestamp of when the event occurred
- */
-async function handleDealStageChange({ objectId, propertyValue, portalId, occurredAt }) {
-  console.log(`[webhook] Deal ${objectId} moved to stage: ${propertyValue}`);
-  console.log(`[webhook] Portal: ${portalId}, Occurred at: ${new Date(occurredAt).toISOString()}`);
+async function recalculateForEvent(event) {
+  const objectType = event.objectType === 'ticket' ? 'tickets' : 'deals';
+  const companies = await hubspotRequest(event.portalId, `/crm/v4/objects/${objectType}/${event.objectId}/associations/companies`);
+  await Promise.all((companies.results || []).map(({ toObjectId }) => recalculateCompany(event.portalId, toObjectId)));
+}
 
-  // TODO: Implement renewal score recalculation logic:
-  // 1. Fetch deal details from HubSpot CRM API
-  // 2. Find the associated Company record
-  // 3. Calculate a new renewal risk score based on:
-  //    - Deal stage (won/lost/open)
-  //    - Open support tickets
-  //    - Last engagement date
-  //    - Contract value
-  // 4. Update the Company's custom properties via HubSpot API
-  //    e.g., PATCH https://api.hubapi.com/crm/v3/objects/companies/{companyId}
-
-  console.log(`[webhook] TODO: recalculate renewal score for deal ${objectId}`);
+async function recalculateCompany(portalId, companyId) {
+  const [tickets, deals] = await Promise.all(['tickets', 'deals'].map((type) => hubspotRequest(portalId, `/crm/v4/objects/companies/${companyId}/associations/${type}`)));
+  const openTickets = (tickets.results || []).length;
+  const dealIds = (deals.results || []).map(({ toObjectId }) => toObjectId);
+  const deal = dealIds[0] ? await hubspotRequest(portalId, `/crm/v3/objects/deals/${dealIds[0]}?properties=dealstage`) : null;
+  const properties = { [`a${APP_ID}_company_id`]: String(companyId), [`a${APP_ID}_company_name`]: String(companyId), [`a${APP_ID}_open_tickets`]: String(openTickets), [`a${APP_ID}_overdue_deals`]: '0', [`a${APP_ID}_engagement_count`]: '0', [`a${APP_ID}_last_calculated`]: new Date().toISOString().slice(0, 10) };
+  const search = await hubspotRequest(portalId, `/crm/v3/objects/${SCORE_OBJECT_TYPE}/search`, { method: 'POST', body: JSON.stringify({ filterGroups: [{ filters: [{ propertyName: `a${APP_ID}_company_id`, operator: 'EQ', value: String(companyId) }] }], properties: [`a${APP_ID}_score`] }) });
+  const previous = search.results?.[0]?.properties?.[`a${APP_ID}_score`];
+  const result = calculateRenewalRisk({ openTickets, renewalDealStage: deal?.properties?.dealstage }, previous == null ? null : Number(previous));
+  Object.assign(properties, { [`a${APP_ID}_score`]: String(result.score), [`a${APP_ID}_risk_level`]: result.riskLevel, [`a${APP_ID}_trend`]: result.trend, [`a${APP_ID}_factor_breakdown`]: JSON.stringify(result.factors) });
+  if (search.results?.[0]) await hubspotRequest(portalId, `/crm/v3/objects/${SCORE_OBJECT_TYPE}/${search.results[0].id}`, { method: 'PATCH', body: JSON.stringify({ properties }) });
+  else await hubspotRequest(portalId, `/crm/v3/objects/${SCORE_OBJECT_TYPE}`, { method: 'POST', body: JSON.stringify({ properties }) });
 }
