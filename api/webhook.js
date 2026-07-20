@@ -12,6 +12,20 @@ module.exports = async (req, res) => {
     console.log(`[webhook] Raw payload: ${JSON.stringify(events)}`);
     for (const event of events) {
       console.log(`[webhook] Event ${event.subscriptionType} for ${event.objectType || event.objectTypeId || 'unknown'} ${event.objectId}.`);
+      if (event.subscriptionType === 'object.associationChange') {
+        console.log(`[webhook] Association fields: ${JSON.stringify({
+          objectId: event.objectId,
+          objectType: event.objectType,
+          objectTypeId: event.objectTypeId,
+          fromObjectId: event.fromObjectId,
+          toObjectId: event.toObjectId,
+          fromObjectTypeId: event.fromObjectTypeId,
+          toObjectTypeId: event.toObjectTypeId,
+          associationType: event.associationType,
+          associationTypeId: event.associationTypeId,
+          associationRemoved: event.associationRemoved,
+        })}`);
+      }
     }
     await Promise.all(events.map(recalculateForEvent));
     return res.status(200).json({ received: true });
@@ -177,6 +191,12 @@ function getDealCompanyAssociation(event) {
     return { dealId: String(event.fromObjectId), companyId: String(event.toObjectId), removed };
   }
   if (fromType === '0-2' && toType === '0-3') {
+    return { dealId: String(event.toObjectId), companyId: String(event.fromObjectId), removed };
+  }
+  if (event.associationType === 'DEAL_TO_COMPANY') {
+    return { dealId: String(event.fromObjectId), companyId: String(event.toObjectId), removed };
+  }
+  if (event.associationType === 'COMPANY_TO_DEAL') {
     return { dealId: String(event.toObjectId), companyId: String(event.fromObjectId), removed };
   }
   return null;
