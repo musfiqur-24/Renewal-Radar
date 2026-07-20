@@ -36,10 +36,6 @@ async function getDealCompanies(portalId, dealId) {
   return response.result ? JSON.parse(response.result) : [];
 }
 
-async function removeDealCompanies(portalId, dealId) {
-  await kv(['del', dealCompaniesKey(portalId, dealId)]);
-}
-
 async function releaseWebhookEvent(portalId, eventKey) {
   await kv(['del', webhookKey(portalId, eventKey)]);
 }
@@ -50,6 +46,5 @@ module.exports = {
   claimWebhookEvent,
   saveDealCompanies,
   getDealCompanies,
-  removeDealCompanies,
   releaseWebhookEvent,
 };

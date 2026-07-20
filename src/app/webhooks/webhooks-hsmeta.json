@@ -14,7 +14,7 @@
           "active": true
         },
         {
-          "subscriptionType": "object.deletion",
+          "subscriptionType": "object.associationChange",
           "objectType": "deal",
           "active": true
         },
