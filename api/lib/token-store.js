@@ -1,6 +1,7 @@
 const key = (portalId) => `renewal-radar:oauth:${portalId}`;
 const webhookKey = (portalId, eventKey) => `renewal-radar:webhook:${portalId}:${eventKey}`;
-const companyDealsKey = (portalId, companyId) => `renewal-radar:company-deals:${portalId}:${companyId}`;
+const associationKey = (portalId, companyId, dealId, removed, occurredAt) =>
+  `renewal-radar:association:${portalId}:${companyId}:${dealId}:${removed}:${occurredAt}`;
 
 async function kv(command) {
   const url = process.env.KV_REST_API_URL;
@@ -27,13 +28,13 @@ async function claimWebhookEvent(portalId, eventKey) {
   return response.result === 'OK';
 }
 
-async function saveCompanyDeals(portalId, companyId, dealIds) {
-  await kv(['set', companyDealsKey(portalId, companyId), JSON.stringify(dealIds), 'EX', '2592000']);
+async function claimAssociationTransition(portalId, companyId, dealId, removed, occurredAt) {
+  const response = await kv(['set', associationKey(portalId, companyId, dealId, removed, occurredAt), '1', 'NX', 'EX', '300']);
+  return response.result === 'OK';
 }
 
-async function getCompanyDeals(portalId, companyId) {
-  const response = await kv(['get', companyDealsKey(portalId, companyId)]);
-  return response.result ? JSON.parse(response.result) : [];
+async function releaseAssociationTransition(portalId, companyId, dealId, removed, occurredAt) {
+  await kv(['del', associationKey(portalId, companyId, dealId, removed, occurredAt)]);
 }
 
 async function releaseWebhookEvent(portalId, eventKey) {
@@ -44,7 +45,7 @@ module.exports = {
   getTokens,
   saveTokens,
   claimWebhookEvent,
-  saveCompanyDeals,
-  getCompanyDeals,
+  claimAssociationTransition,
+  releaseAssociationTransition,
   releaseWebhookEvent,
 };

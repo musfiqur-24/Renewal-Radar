@@ -1,6 +1,6 @@
 const { hubspotRequest } = require('./lib/hubspot.js');
 const { calculateRenewalRisk } = require('./lib/renewal-score.js');
-const { claimWebhookEvent, saveCompanyDeals, getCompanyDeals, releaseWebhookEvent } = require('./lib/token-store.js');
+const { claimWebhookEvent, claimAssociationTransition, releaseAssociationTransition, releaseWebhookEvent } = require('./lib/token-store.js');
 const SCORE_OBJECT_TYPE = '1-12815455';
 const APP_ID = '45236293';
 
@@ -33,7 +33,10 @@ async function recalculateForEvent(event) {
     event.occurredAt || event.createdAt || event.label,
     event.fromObjectTypeId,
     event.toObjectTypeId,
+    event.fromObjectId,
+    event.toObjectId,
     event.associationTypeId,
+    event.associationRemoved,
     event.propertyName,
     event.propertyValue,
   ].join(':');
@@ -43,35 +46,32 @@ async function recalculateForEvent(event) {
   }
 
   try {
+    const dealCompanyAssociation = getDealCompanyAssociation(event);
+    if (dealCompanyAssociation) {
+      const { companyId, dealId, removed } = dealCompanyAssociation;
+      const occurredAt = event.occurredAt || event.createdAt || event.label || event.eventId;
+      if (!(await claimAssociationTransition(event.portalId, companyId, dealId, removed, occurredAt))) {
+        console.log(`[webhook] Ignored duplicate Deal-to-Company association transition for Deal ${dealId}.`);
+        return;
+      }
+      try {
+        await recalculateCompany(event.portalId, companyId, {
+          ...event,
+          renewalAction: removed ? 'association-removed' : 'association-added',
+        });
+      } catch (error) {
+        await releaseAssociationTransition(event.portalId, companyId, dealId, removed, occurredAt);
+        throw error;
+      }
+      return;
+    }
+
     const dealEvent = isDealWebhookEvent(event);
-    const companyEvent = isCompanyWebhookEvent(event);
     const objectType = isTicketEvent(event) ? 'tickets' : 'deals';
 
     let companyIds;
-    if (companyEvent && event.subscriptionType === 'object.associationChange' && isDealAssociationChange(event)) {
-      const companyId = String(event.objectId);
-      const deals = await hubspotRequest(event.portalId, `/crm/v4/objects/companies/${companyId}/associations/deals`);
-      const currentDealIds = (deals.results || []).map(({ toObjectId }) => String(toObjectId));
-      const previousDealIds = await getCompanyDeals(event.portalId, companyId);
-      const addedDealIds = currentDealIds.filter((dealId) => !previousDealIds.includes(dealId));
-      const removedDealIds = previousDealIds.filter((dealId) => !currentDealIds.includes(dealId));
-      await saveCompanyDeals(event.portalId, companyId, currentDealIds);
-
-      await Promise.all([
-        ...addedDealIds.map(() => recalculateCompany(event.portalId, companyId, { ...event, renewalAction: 'association-added' })),
-        ...removedDealIds.map(() => recalculateCompany(event.portalId, companyId, { ...event, renewalAction: 'association-removed' })),
-      ]);
-      if (!addedDealIds.length && !removedDealIds.length) {
-        console.log(`[webhook] Company ${companyId} association change did not affect a Deal.`);
-      }
-      return;
-    } else if (companyEvent && event.subscriptionType === 'object.associationChange') {
-      console.log(`[webhook] Ignored non-Deal Company association event for ${event.objectId}.`);
-      return;
-    } else if (dealEvent && event.subscriptionType === 'object.associationChange') {
-      // HubSpot sends both Deal-side and Company-side notifications. The
-      // Company event is authoritative, preventing duplicate point changes.
-      console.log(`[webhook] Ignored Deal-side association event for ${event.objectId}.`);
+    if (event.subscriptionType === 'object.associationChange') {
+      console.log('[webhook] Ignored association change that does not involve a Deal and a Company.');
       return;
     } else {
       const companies = await hubspotRequest(event.portalId, `/crm/v4/objects/${objectType}/${event.objectId}/associations/companies`);
@@ -95,7 +95,6 @@ async function recalculateCompany(portalId, companyId, event) {
   const [tickets, deals] = await Promise.all(['tickets', 'deals'].map((type) => hubspotRequest(portalId, `/crm/v4/objects/companies/${companyId}/associations/${type}`)));
   const openTickets = (tickets.results || []).length;
   const dealIds = (deals.results || []).map(({ toObjectId }) => toObjectId);
-  await saveCompanyDeals(portalId, companyId, dealIds.map(String));
   const deal = dealIds[0] ? await hubspotRequest(portalId, `/crm/v3/objects/deals/${dealIds[0]}?properties=dealstage`) : null;
   const properties = { [`a${APP_ID}_company_id`]: String(companyId), [`a${APP_ID}_company_name`]: String(companyId), [`a${APP_ID}_open_tickets`]: String(openTickets), [`a${APP_ID}_overdue_deals`]: '0', [`a${APP_ID}_engagement_count`]: '0', [`a${APP_ID}_last_calculated`]: new Date().toISOString().slice(0, 10) };
   const search = await hubspotRequest(portalId, `/crm/v3/objects/${SCORE_OBJECT_TYPE}/search`, { method: 'POST', body: JSON.stringify({ filterGroups: [{ filters: [{ propertyName: `a${APP_ID}_company_id`, operator: 'EQ', value: String(companyId) }] }], properties: [`a${APP_ID}_score`] }) });
@@ -169,10 +168,16 @@ function isTicketEvent(event) {
   return event.objectType === 'ticket' || String(event.objectTypeId) === '0-5';
 }
 
-function isCompanyWebhookEvent(event) {
-  return event.objectType === 'company' || String(event.objectTypeId) === '0-2';
-}
-
-function isDealAssociationChange(event) {
-  return String(event.fromObjectTypeId) === '0-3' || String(event.toObjectTypeId) === '0-3';
+function getDealCompanyAssociation(event) {
+  if (event.subscriptionType !== 'object.associationChange') return null;
+  const fromType = String(event.fromObjectTypeId);
+  const toType = String(event.toObjectTypeId);
+  const removed = event.associationRemoved === true || event.associationRemoved === 'true';
+  if (fromType === '0-3' && toType === '0-2') {
+    return { dealId: String(event.fromObjectId), companyId: String(event.toObjectId), removed };
+  }
+  if (fromType === '0-2' && toType === '0-3') {
+    return { dealId: String(event.toObjectId), companyId: String(event.fromObjectId), removed };
+  }
+  return null;
 }
