@@ -7,6 +7,7 @@
  */
 
 const https = require('https');
+const { saveTokens } = require('../lib/token-store.js');
 
 module.exports = async (req, res) => {
   // Only allow GET requests
@@ -35,9 +36,7 @@ module.exports = async (req, res) => {
 
   try {
     const tokens = await exchangeCodeForTokens(code);
-
-    // TODO: Persist tokens in a database (e.g., Vercel KV, PlanetScale, Supabase).
-    // For now we log them to Vercel's function logs.
+    await saveTokens(tokens.hub_id, tokens);
     console.log('[oauth/callback] Token exchange successful');
     console.log(`  Access Token  : ${tokens.access_token.substring(0, 16)}...`);
     console.log(`  Refresh Token : ${tokens.refresh_token.substring(0, 16)}...`);
@@ -62,7 +61,7 @@ module.exports = async (req, res) => {
         <body>
           <div class="card">
             <h2>✅ Renewal Radar Installed!</h2>
-            <p>Your app was successfully authorized and the access token has been stored.</p>
+            <p>Your app was successfully authorized and its credentials were stored securely.</p>
             <p>You can close this window and return to HubSpot.</p>
             <span class="badge">Hub ID: ${tokens.hub_id}</span>
           </div>

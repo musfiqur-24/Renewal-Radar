@@ -1,14 +1,4 @@
-/**
- * Vercel Serverless Function: POST /api/webhook
- *
- * Receives event notifications from HubSpot. Currently subscribed to:
- *  - deal.propertyChange (dealstage) — fires when a deal moves pipeline stage
- *
- * HubSpot sends an array of event objects in the request body.
- * Each event has: subscriptionType, objectId, propertyName, propertyValue, etc.
- *
- * Docs: https://developers.hubspot.com/docs/api/webhooks
- */
+
 
 module.exports = async (req, res) => {
   // Vercel handles CORS but HubSpot sends POST

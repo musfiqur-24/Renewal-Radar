@@ -1,18 +1,3 @@
-/**
- * Vercel Serverless Function: POST /api/workflow-action
- *
- * This endpoint is the `actionUrl` for the Renewal Radar custom
- * HubSpot Workflow Action. HubSpot calls this URL when the action
- * is triggered in a contact workflow.
- *
- * HubSpot sends a POST body with:
- *   - inputFields: { message, priority } (defined in workflow-actions-hsmeta.json)
- *   - object.objectId: the Contact's HubSpot ID
- *   - portalId: the HubSpot portal ID
- *   - callbackId: used to send the result back to HubSpot asynchronously
- *
- * Docs: https://developers.hubspot.com/docs/apps/developer-platform/add-features/workflow-actions
- */
 
 module.exports = async (req, res) => {
   if (req.method !== 'POST') {
