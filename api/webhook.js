@@ -9,6 +9,9 @@ module.exports = async (req, res) => {
   try {
     const events = Array.isArray(req.body) ? req.body : [];
     console.log(`[webhook] Renewal Radar scorer v1 received ${events.length} event(s).`);
+    for (const event of events) {
+      console.log(`[webhook] Event ${event.subscriptionType} for ${event.objectType || event.objectTypeId || 'unknown'} ${event.objectId}.`);
+    }
     await Promise.all(events.map(recalculateForEvent));
     return res.status(200).json({ received: true });
   } catch (error) {
@@ -25,17 +28,11 @@ async function recalculateForEvent(event) {
   }
 
   try {
-    const objectType = event.objectType === 'ticket' ? 'tickets' : 'deals';
-
-    // A deal creation can arrive before its Company association exists. The
-    // association-change event below is the single source of truth for +10.
-    if (event.objectType === 'deal' && event.subscriptionType === 'object.creation') {
-      console.log(`[webhook] Deal ${event.objectId} created; waiting for its Company association.`);
-      return;
-    }
+    const dealEvent = isDealWebhookEvent(event);
+    const objectType = isTicketEvent(event) ? 'tickets' : 'deals';
 
     let companyIds;
-    if (event.objectType === 'deal' && event.subscriptionType === 'object.associationChange') {
+    if (dealEvent && event.subscriptionType === 'object.associationChange') {
       const companies = await hubspotRequest(event.portalId, `/crm/v4/objects/deals/${event.objectId}/associations/companies`);
       const currentCompanyIds = (companies.results || []).map(({ toObjectId }) => String(toObjectId));
       const previousCompanyIds = await getDealCompanies(event.portalId, event.objectId);
@@ -54,13 +51,13 @@ async function recalculateForEvent(event) {
     } else {
       const companies = await hubspotRequest(event.portalId, `/crm/v4/objects/${objectType}/${event.objectId}/associations/companies`);
       companyIds = (companies.results || []).map(({ toObjectId }) => String(toObjectId));
-      if (event.objectType === 'deal' && companyIds.length) {
+      if (dealEvent && companyIds.length) {
         await saveDealCompanies(event.portalId, event.objectId, companyIds);
       }
     }
 
     if (!companyIds.length) {
-      console.log(`[webhook] No associated company was available for ${event.objectType} ${event.objectId}.`);
+      console.log(`[webhook] No associated company was available for ${event.objectType || event.objectTypeId} ${event.objectId}.`);
       return;
     }
     await Promise.all(companyIds.map((companyId) => recalculateCompany(event.portalId, companyId, event)));
@@ -80,7 +77,7 @@ async function recalculateCompany(portalId, companyId, event) {
   const properties = { [`a${APP_ID}_company_id`]: String(companyId), [`a${APP_ID}_company_name`]: String(companyId), [`a${APP_ID}_open_tickets`]: String(openTickets), [`a${APP_ID}_overdue_deals`]: '0', [`a${APP_ID}_engagement_count`]: '0', [`a${APP_ID}_last_calculated`]: new Date().toISOString().slice(0, 10) };
   const search = await hubspotRequest(portalId, `/crm/v3/objects/${SCORE_OBJECT_TYPE}/search`, { method: 'POST', body: JSON.stringify({ filterGroups: [{ filters: [{ propertyName: `a${APP_ID}_company_id`, operator: 'EQ', value: String(companyId) }] }], properties: [`a${APP_ID}_score`] }) });
   const previous = search.results?.[0]?.properties?.[`a${APP_ID}_score`];
-  const isDealEvent = event.objectType === 'deal';
+  const isDealEvent = isDealWebhookEvent(event);
   const stage = String(event.propertyValue || deal?.properties?.dealstage || '').toLowerCase();
   const isWon = stage.includes('closedwon');
   const isLost = stage.includes('closedlost');
@@ -89,7 +86,7 @@ async function recalculateCompany(portalId, companyId, event) {
       : isDealEvent && event.subscriptionType === 'object.propertyChange' && isWon ? 16
         : isDealEvent && event.subscriptionType === 'object.propertyChange' && isLost ? -9
           : isDealEvent && event.subscriptionType === 'object.propertyChange' ? 1 : 0;
-  const eventTitle = isDealEvent && event.renewalAction === 'association-added' ? 'Associated deal created (+10)'
+  const eventTitle = isDealEvent && event.renewalAction === 'association-added' ? 'Deal associated with Company (+10)'
     : isDealEvent && event.renewalAction === 'association-removed' ? 'Associated deal removed from Company (-15)'
       : isDealEvent && event.subscriptionType === 'object.propertyChange' && isWon ? 'Associated deal moved to Closed Won (+16)'
         : isDealEvent && event.subscriptionType === 'object.propertyChange' && isLost ? 'Associated deal moved to Closed Lost (-9)'
@@ -135,4 +132,14 @@ async function recalculateCompany(portalId, companyId, event) {
     }),
   });
   console.log(`[webhook] Saved score ${result.score} for Company ${companyId}.`);
+}
+
+// Generic project webhooks identify standard objects using objectTypeId.
+// Some deliveries also include the readable objectType field, so support both.
+function isDealWebhookEvent(event) {
+  return event.objectType === 'deal' || String(event.objectTypeId) === '0-3';
+}
+
+function isTicketEvent(event) {
+  return event.objectType === 'ticket' || String(event.objectTypeId) === '0-5';
 }
