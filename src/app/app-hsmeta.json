@@ -19,7 +19,11 @@
         "tickets",
         "crm.objects.contacts.read",
         "crm.schemas.companies.read",
-        "timeline"
+        "timeline",
+        "crm.app.schemas.a45236293_renewal_score.read",
+        "crm.app.objects.a45236293_renewal_score.view",
+        "crm.app.objects.a45236293_renewal_score.create",
+        "crm.app.objects.a45236293_renewal_score.edit"
       ],
       "optionalScopes": [],
       "conditionallyRequiredScopes": []

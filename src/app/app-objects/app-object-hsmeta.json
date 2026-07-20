@@ -4,9 +4,8 @@
   "config": {
     "name": "RENEWAL_SCORE",
     "description": "Stores account health and renewal risk scores for HubSpot companies.",
-    "singularForm": "Renewal Score",
-    "pluralForm": "Renewal Scores",
-    "appPrefix": "RenewalRadar",
+    "singularForm": "Renewal Radar",
+    "pluralForm": "Renewal Radar",
 
     "primaryDisplayLabelPropertyName": "company_name",
 
