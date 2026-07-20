@@ -1,9 +1,12 @@
-function calculateRenewalRisk({ openTickets = 0, renewalDealStage = '' }, previousScore = null) {
-  const ticketImpact = openTickets === 0 ? 15 : openTickets <= 2 ? 10 : openTickets >= 6 ? -15 : 0;
+function calculateRenewalRisk({ openTickets = 0, dealCreated = false, dealStageChanged = false, renewalDealStage = '' }, previousScore = null) {
+  // Deal events are incremental; do not reapply ticket points every time a deal moves stage.
+  const ticketImpact = 0;
   const stage = renewalDealStage.toLowerCase();
-  const salesImpact = stage.includes('lost') ? -25 : stage.includes('negotiation') ? 5 : 0;
-  const score = Math.max(0, Math.min(100, 30 + ticketImpact + salesImpact));
+  const creationImpact = dealCreated ? 10 : 0;
+  const stageChangeImpact = dealStageChanged ? 1 : 0;
+  const outcomeImpact = stage.includes('closedwon') ? 15 : stage.includes('closedlost') ? -10 : 0;
+  const score = Math.max(0, Math.min(100, (previousScore ?? 30) + ticketImpact + creationImpact + stageChangeImpact + outcomeImpact));
   const delta = previousScore == null ? null : score - previousScore;
-  return { score, delta, trend: delta == null || Math.abs(delta) < 3 ? 'flat' : delta > 0 ? 'up' : 'down', riskLevel: score >= 80 ? 'healthy' : score >= 60 ? 'watch' : score >= 40 ? 'at_risk' : 'critical', factors: [{ id: 'tickets', impact: ticketImpact }, { id: 'sales', impact: salesImpact }] };
+  return { score, delta, trend: delta == null || Math.abs(delta) < 3 ? 'flat' : delta > 0 ? 'up' : 'down', riskLevel: score >= 80 ? 'healthy' : score >= 60 ? 'watch' : score >= 40 ? 'at_risk' : 'critical', factors: [{ id: 'tickets', impact: ticketImpact }, { id: 'deal-created', impact: creationImpact }, { id: 'stage-changed', impact: stageChangeImpact }, { id: 'deal-outcome', impact: outcomeImpact }] };
 }
 module.exports = { calculateRenewalRisk };
