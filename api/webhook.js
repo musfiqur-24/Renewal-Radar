@@ -1,5 +1,6 @@
 const { hubspotRequest } = require('./lib/hubspot.js');
 const { calculateRenewalRisk } = require('./lib/renewal-score.js');
+const { claimWebhookEvent, saveDealCompanies, getDealCompanies, removeDealCompanies, releaseWebhookEvent } = require('./lib/token-store.js');
 const SCORE_OBJECT_TYPE = '1-12815455';
 const APP_ID = '45236293';
 
@@ -17,9 +18,37 @@ module.exports = async (req, res) => {
 };
 
 async function recalculateForEvent(event) {
-  const objectType = event.objectType === 'ticket' ? 'tickets' : 'deals';
-  const companies = await hubspotRequest(event.portalId, `/crm/v4/objects/${objectType}/${event.objectId}/associations/companies`);
-  await Promise.all((companies.results || []).map(({ toObjectId }) => recalculateCompany(event.portalId, toObjectId, event)));
+  const deliveryKey = event.eventId || [event.subscriptionType, event.objectId, event.occurredAt, event.propertyName, event.propertyValue].join(':');
+  if (!(await claimWebhookEvent(event.portalId, deliveryKey))) {
+    console.log(`[webhook] Ignored duplicate event ${deliveryKey}.`);
+    return;
+  }
+
+  try {
+    const objectType = event.objectType === 'ticket' ? 'tickets' : 'deals';
+    let companyIds;
+    if (event.objectType === 'deal' && event.subscriptionType === 'object.deletion') {
+      // The deal no longer exists, so HubSpot cannot return its associations.
+      companyIds = await getDealCompanies(event.portalId, event.objectId);
+      await removeDealCompanies(event.portalId, event.objectId);
+    } else {
+      const companies = await hubspotRequest(event.portalId, `/crm/v4/objects/${objectType}/${event.objectId}/associations/companies`);
+      companyIds = (companies.results || []).map(({ toObjectId }) => String(toObjectId));
+      if (event.objectType === 'deal' && companyIds.length) {
+        await saveDealCompanies(event.portalId, event.objectId, companyIds);
+      }
+    }
+
+    if (!companyIds.length) {
+      console.log(`[webhook] No associated company was available for ${event.objectType} ${event.objectId}.`);
+      return;
+    }
+    await Promise.all(companyIds.map((companyId) => recalculateCompany(event.portalId, companyId, event)));
+  } catch (error) {
+    // Leave failed deliveries eligible for HubSpot's retry rather than losing points.
+    await releaseWebhookEvent(event.portalId, deliveryKey);
+    throw error;
+  }
 }
 
 async function recalculateCompany(portalId, companyId, event) {
@@ -32,10 +61,25 @@ async function recalculateCompany(portalId, companyId, event) {
   const search = await hubspotRequest(portalId, `/crm/v3/objects/${SCORE_OBJECT_TYPE}/search`, { method: 'POST', body: JSON.stringify({ filterGroups: [{ filters: [{ propertyName: `a${APP_ID}_company_id`, operator: 'EQ', value: String(companyId) }] }], properties: [`a${APP_ID}_score`] }) });
   const previous = search.results?.[0]?.properties?.[`a${APP_ID}_score`];
   const isDealEvent = event.objectType === 'deal';
+  const stage = String(event.propertyValue || deal?.properties?.dealstage || '').toLowerCase();
+  const isWon = stage.includes('closedwon');
+  const isLost = stage.includes('closedlost');
+  const pointChange = isDealEvent && event.subscriptionType === 'object.creation' ? 10
+    : isDealEvent && event.subscriptionType === 'object.deletion' ? -15
+      : isDealEvent && event.subscriptionType === 'object.propertyChange' && isWon ? 16
+        : isDealEvent && event.subscriptionType === 'object.propertyChange' && isLost ? -9
+          : isDealEvent && event.subscriptionType === 'object.propertyChange' ? 1 : 0;
+  const eventTitle = isDealEvent && event.subscriptionType === 'object.creation' ? 'Associated deal created (+10)'
+    : isDealEvent && event.subscriptionType === 'object.deletion' ? 'Associated deal deleted (-15)'
+      : isDealEvent && event.subscriptionType === 'object.propertyChange' && isWon ? 'Associated deal moved to Closed Won (+16)'
+        : isDealEvent && event.subscriptionType === 'object.propertyChange' && isLost ? 'Associated deal moved to Closed Lost (-9)'
+          : isDealEvent && event.subscriptionType === 'object.propertyChange' ? 'Associated deal stage changed (+1)'
+            : 'Renewal score recalculated';
   const result = calculateRenewalRisk({
     openTickets,
     renewalDealStage: String(event.propertyValue || deal?.properties?.dealstage || ''),
     dealCreated: isDealEvent && event.subscriptionType === 'object.creation',
+    dealDeleted: isDealEvent && event.subscriptionType === 'object.deletion',
     dealStageChanged: isDealEvent && event.subscriptionType === 'object.propertyChange' && event.propertyName === 'dealstage',
   }, previous == null ? null : Number(previous));
   Object.assign(properties, { [`a${APP_ID}_score`]: String(result.score), [`a${APP_ID}_risk_level`]: result.riskLevel, [`a${APP_ID}_trend`]: result.trend, [`a${APP_ID}_factor_breakdown`]: JSON.stringify(result.factors) });
@@ -65,6 +109,8 @@ async function recalculateCompany(portalId, companyId, event) {
         riskLevel: result.riskLevel,
         openTickets,
         overdueDeals: 0,
+        eventTitle,
+        pointChange,
       },
     }),
   });

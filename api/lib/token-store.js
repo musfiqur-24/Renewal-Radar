@@ -1,4 +1,6 @@
 const key = (portalId) => `renewal-radar:oauth:${portalId}`;
+const webhookKey = (portalId, eventKey) => `renewal-radar:webhook:${portalId}:${eventKey}`;
+const dealCompaniesKey = (portalId, dealId) => `renewal-radar:deal-companies:${portalId}:${dealId}`;
 
 async function kv(command) {
   const url = process.env.KV_REST_API_URL;
@@ -18,4 +20,36 @@ async function getTokens(portalId) {
   return response.result ? JSON.parse(response.result) : null;
 }
 
-module.exports = { getTokens, saveTokens };
+// HubSpot can retry the same delivery.  Scoring is incremental, so accept a
+// delivery only once; Upstash SET NX returns null when the key already exists.
+async function claimWebhookEvent(portalId, eventKey) {
+  const response = await kv(['set', webhookKey(portalId, eventKey), '1', 'NX', 'EX', '86400']);
+  return response.result === 'OK';
+}
+
+async function saveDealCompanies(portalId, dealId, companyIds) {
+  await kv(['set', dealCompaniesKey(portalId, dealId), JSON.stringify(companyIds), 'EX', '2592000']);
+}
+
+async function getDealCompanies(portalId, dealId) {
+  const response = await kv(['get', dealCompaniesKey(portalId, dealId)]);
+  return response.result ? JSON.parse(response.result) : [];
+}
+
+async function removeDealCompanies(portalId, dealId) {
+  await kv(['del', dealCompaniesKey(portalId, dealId)]);
+}
+
+async function releaseWebhookEvent(portalId, eventKey) {
+  await kv(['del', webhookKey(portalId, eventKey)]);
+}
+
+module.exports = {
+  getTokens,
+  saveTokens,
+  claimWebhookEvent,
+  saveDealCompanies,
+  getDealCompanies,
+  removeDealCompanies,
+  releaseWebhookEvent,
+};

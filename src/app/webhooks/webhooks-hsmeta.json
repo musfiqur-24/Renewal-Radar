@@ -14,6 +14,11 @@
           "active": true
         },
         {
+          "subscriptionType": "object.deletion",
+          "objectType": "deal",
+          "active": true
+        },
+        {
           "subscriptionType": "object.propertyChange",
           "propertyName": "dealstage",
           "objectType": "deal",
