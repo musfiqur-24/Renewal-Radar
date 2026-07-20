@@ -5,7 +5,11 @@ function calculateRenewalRisk({ openTickets = 0, dealCreated = false, dealAssoci
   const creationImpact = dealCreated ? 10 : 0;
   const associationRemovalImpact = dealAssociationRemoved ? -15 : 0;
   const stageChangeImpact = dealStageChanged ? 1 : 0;
-  const outcomeImpact = stage.includes('closedwon') ? 15 : stage.includes('closedlost') ? -10 : 0;
+  // A Closed Won/Lost bonus belongs only to a real dealstage change. An
+  // association event may reference a deal that is already closed, but that
+  // event must apply only its association points (+10 or -15).
+  const outcomeImpact = dealStageChanged && stage.includes('closedwon') ? 15
+    : dealStageChanged && stage.includes('closedlost') ? -10 : 0;
   const score = Math.max(0, Math.min(100, (previousScore ?? 30) + ticketImpact + creationImpact + associationRemovalImpact + stageChangeImpact + outcomeImpact));
   const delta = previousScore == null ? null : score - previousScore;
   return { score, delta, trend: delta == null || Math.abs(delta) < 3 ? 'flat' : delta > 0 ? 'up' : 'down', riskLevel: score >= 80 ? 'healthy' : score >= 60 ? 'watch' : score >= 40 ? 'at_risk' : 'critical', factors: [{ id: 'tickets', impact: ticketImpact }, { id: 'deal-created', impact: creationImpact }, { id: 'deal-association-removed', impact: associationRemovalImpact }, { id: 'stage-changed', impact: stageChangeImpact }, { id: 'deal-outcome', impact: outcomeImpact }] };
