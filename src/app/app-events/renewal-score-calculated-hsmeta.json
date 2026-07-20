@@ -12,7 +12,8 @@
       { "name": "riskLevel", "label": "Risk level", "description": "Calculated risk band.", "type": "enumeration", "options": [
         { "value": "healthy", "label": "Healthy" },
         { "value": "watch", "label": "Watch" },
-        { "value": "at_risk", "label": "At risk" }
+        { "value": "at_risk", "label": "At risk" },
+        { "value": "critical", "label": "Critical" }
       ] },
       { "name": "openTickets", "label": "Open tickets", "description": "Number of open tickets.", "type": "number" },
       { "name": "overdueDeals", "label": "Overdue deals", "description": "Number of overdue deals.", "type": "number" }
