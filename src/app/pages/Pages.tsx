@@ -52,3 +52,4 @@ const PagesExtension = ({ context, actions }: PagesExtensionProps) => {
 hubspot.extend<'pages'>(({ context, actions }: PagesExtensionProps) => (
   <PagesExtension context={context} actions={actions} />
 ));
+

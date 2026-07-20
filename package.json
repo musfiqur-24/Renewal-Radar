@@ -4,7 +4,6 @@
   "description": "HubSpot Marketplace App for tracking renewal risk scores on Company records.",
   "private": true,
   "scripts": {
-    "dev:oauth": "node backend/local-dev.js",
     "dev:hubspot": "hs project dev",
     "upload": "hs project upload",
     "deploy": "hs project upload",

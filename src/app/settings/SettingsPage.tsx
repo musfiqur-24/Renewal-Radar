@@ -37,3 +37,4 @@ const SettingsPage = ({ context, actions }: SettingsExtensionProps) => {
     </>
   );
 };
+

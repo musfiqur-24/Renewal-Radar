@@ -1,6 +1,5 @@
 import React from 'react';
-import { Box, Divider, ErrorState, Flex, LoadingSpinner, Tag, Text, hubspot } from '@hubspot/ui-extensions';
-import { useExtensionContext } from '@hubspot/ui-extensions';
+import { Box, Divider, ErrorState, Flex, LoadingSpinner, Tag, Text, hubspot, useExtensionContext } from '@hubspot/ui-extensions';
 import { useAssociations } from '@hubspot/ui-extensions/crm';
 
 hubspot.extend<'crm.record.tab'>(() => <RenewalRadar />);
