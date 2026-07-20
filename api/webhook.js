@@ -23,6 +23,7 @@ async function recalculateForEvent(event) {
 }
 
 async function recalculateCompany(portalId, companyId) {
+  console.log(`[webhook] Recalculating Company ${companyId}.`);
   const [tickets, deals] = await Promise.all(['tickets', 'deals'].map((type) => hubspotRequest(portalId, `/crm/v4/objects/companies/${companyId}/associations/${type}`)));
   const openTickets = (tickets.results || []).length;
   const dealIds = (deals.results || []).map(({ toObjectId }) => toObjectId);
@@ -32,6 +33,19 @@ async function recalculateCompany(portalId, companyId) {
   const previous = search.results?.[0]?.properties?.[`a${APP_ID}_score`];
   const result = calculateRenewalRisk({ openTickets, renewalDealStage: deal?.properties?.dealstage }, previous == null ? null : Number(previous));
   Object.assign(properties, { [`a${APP_ID}_score`]: String(result.score), [`a${APP_ID}_risk_level`]: result.riskLevel, [`a${APP_ID}_trend`]: result.trend, [`a${APP_ID}_factor_breakdown`]: JSON.stringify(result.factors) });
-  if (search.results?.[0]) await hubspotRequest(portalId, `/crm/v3/objects/${SCORE_OBJECT_TYPE}/${search.results[0].id}`, { method: 'PATCH', body: JSON.stringify({ properties }) });
-  else await hubspotRequest(portalId, `/crm/v3/objects/${SCORE_OBJECT_TYPE}`, { method: 'POST', body: JSON.stringify({ properties }) });
+  let scoreRecordId = search.results?.[0]?.id;
+  if (scoreRecordId) {
+    await hubspotRequest(portalId, `/crm/v3/objects/${SCORE_OBJECT_TYPE}/${scoreRecordId}`, { method: 'PATCH', body: JSON.stringify({ properties }) });
+  } else {
+    const created = await hubspotRequest(portalId, `/crm/v3/objects/${SCORE_OBJECT_TYPE}`, { method: 'POST', body: JSON.stringify({ properties }) });
+    scoreRecordId = created.id;
+  }
+  const labels = await hubspotRequest(portalId, `/crm/v4/associations/${SCORE_OBJECT_TYPE}/companies/labels`);
+  const association = labels.results?.[0];
+  if (!association) throw new Error('Renewal Radar-to-Company association type was not found.');
+  await hubspotRequest(portalId, `/crm/v4/objects/${SCORE_OBJECT_TYPE}/${scoreRecordId}/associations/companies/${companyId}`, {
+    method: 'PUT',
+    body: JSON.stringify([{ associationCategory: association.category, associationTypeId: association.typeId }]),
+  });
+  console.log(`[webhook] Saved score ${result.score} for Company ${companyId}.`);
 }
