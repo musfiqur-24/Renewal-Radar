@@ -38,10 +38,7 @@ module.exports = async (req, res) => {
     const tokens = await exchangeCodeForTokens(code);
     await saveTokens(tokens.hub_id, tokens);
     console.log('[oauth/callback] Token exchange successful');
-    console.log(`  Access Token  : ${tokens.access_token.substring(0, 16)}...`);
-    console.log(`  Refresh Token : ${tokens.refresh_token.substring(0, 16)}...`);
-    console.log(`  Expires In    : ${tokens.expires_in}s`);
-    console.log(`  Hub ID        : ${tokens.hub_id}`);
+    console.log(`[oauth/callback] Credentials stored for portal ${tokens.hub_id}.`);
 
     res.setHeader('Content-Type', 'text/html');
     return res.status(200).send(`
