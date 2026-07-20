@@ -47,5 +47,20 @@ async function recalculateCompany(portalId, companyId) {
     method: 'PUT',
     body: JSON.stringify([{ associationCategory: association.category, associationTypeId: association.typeId }]),
   });
+  await hubspotRequest(portalId, '/integrators/timeline/v4/events', {
+    method: 'POST',
+    body: JSON.stringify({
+      eventTypeName: 'renewal_score_calculated',
+      objectId: String(companyId),
+      id: `renewal-score-${companyId}-${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      properties: {
+        score: result.score,
+        riskLevel: result.riskLevel,
+        openTickets,
+        overdueDeals: 0,
+      },
+    }),
+  });
   console.log(`[webhook] Saved score ${result.score} for Company ${companyId}.`);
 }

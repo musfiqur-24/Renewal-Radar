@@ -9,6 +9,11 @@
     "subscriptions": {
       "crmObjects": [
         {
+          "subscriptionType": "object.creation",
+          "objectType": "deal",
+          "active": true
+        },
+        {
           "subscriptionType": "object.propertyChange",
           "propertyName": "dealstage",
           "objectType": "deal",
