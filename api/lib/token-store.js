@@ -1,8 +1,9 @@
 const key = (portalId) => `renewal-radar:oauth:${portalId}`;
 const webhookKey = (portalId, eventKey) => `renewal-radar:webhook:${portalId}:${eventKey}`;
 const associationKey = (portalId, companyId, dealId, removed, occurredAt) =>
-  `renewal-radar:association:${portalId}:${companyId}:${dealId}:${removed}:${occurredAt}`;
+  `renewal-radar:association:${portalId}:${companyId}:${dealId}:${removed}:${associationWindow(occurredAt)}`;
 const companyLockKey = (portalId, companyId) => `renewal-radar:score-lock:${portalId}:${companyId}`;
+const dealAssociationStateKey = (portalId, dealId, companyId) => `renewal-radar:deal-association:${portalId}:${dealId}:${companyId}`;
 
 async function kv(command) {
   const url = process.env.KV_REST_API_URL;
@@ -34,6 +35,13 @@ async function claimAssociationTransition(portalId, companyId, dealId, removed, 
   return response.result === 'OK';
 }
 
+// HubSpot emits separate primary/default association notifications a few
+// milliseconds apart for one user action. Treat them as one transition.
+function associationWindow(occurredAt) {
+  const timestamp = Number(occurredAt);
+  return Number.isFinite(timestamp) ? Math.floor(timestamp / 10000) : String(occurredAt);
+}
+
 async function releaseAssociationTransition(portalId, companyId, dealId, removed, occurredAt) {
   await kv(['del', associationKey(portalId, companyId, dealId, removed, occurredAt)]);
 }
@@ -45,6 +53,19 @@ async function acquireCompanyScoreLock(portalId, companyId) {
 
 async function releaseCompanyScoreLock(portalId, companyId) {
   await kv(['del', companyLockKey(portalId, companyId)]);
+}
+
+async function markDealAssociated(portalId, dealId, companyId, occurredAt) {
+  await kv(['set', dealAssociationStateKey(portalId, dealId, companyId), String(occurredAt), 'EX', '2592000']);
+}
+
+async function getDealAssociationTime(portalId, dealId, companyId) {
+  const response = await kv(['get', dealAssociationStateKey(portalId, dealId, companyId)]);
+  return response.result ? Number(response.result) : null;
+}
+
+async function removeDealAssociationState(portalId, dealId, companyId) {
+  await kv(['del', dealAssociationStateKey(portalId, dealId, companyId)]);
 }
 
 async function releaseWebhookEvent(portalId, eventKey) {
@@ -59,5 +80,8 @@ module.exports = {
   releaseAssociationTransition,
   acquireCompanyScoreLock,
   releaseCompanyScoreLock,
+  markDealAssociated,
+  getDealAssociationTime,
+  removeDealAssociationState,
   releaseWebhookEvent,
 };

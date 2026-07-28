@@ -1,6 +1,6 @@
 const { hubspotRequest } = require('./lib/hubspot.js');
 const { calculateRenewalRisk } = require('./lib/renewal-score.js');
-const { claimWebhookEvent, claimAssociationTransition, releaseAssociationTransition, acquireCompanyScoreLock, releaseCompanyScoreLock, releaseWebhookEvent } = require('./lib/token-store.js');
+const { claimWebhookEvent, claimAssociationTransition, releaseAssociationTransition, acquireCompanyScoreLock, releaseCompanyScoreLock, markDealAssociated, getDealAssociationTime, removeDealAssociationState, releaseWebhookEvent } = require('./lib/token-store.js');
 const SCORE_OBJECT_TYPE = '1-12815455';
 const APP_ID = '45236293';
 
@@ -8,7 +8,7 @@ module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST required' });
   try {
     const events = Array.isArray(req.body) ? req.body : [];
-    console.log(`[webhook] Renewal Radar scorer v2.2-single-company-record received ${events.length} event(s).`);
+    console.log(`[webhook] Renewal Radar scorer v2.3-association-dedup received ${events.length} event(s).`);
     console.log(`[webhook] Raw payload: ${JSON.stringify(events)}`);
     for (const event of events) {
       console.log(`[webhook] Event ${event.subscriptionType} for ${event.objectType || event.objectTypeId || 'unknown'} ${event.objectId}.`);
@@ -69,6 +69,11 @@ async function recalculateForEvent(event) {
         return;
       }
       try {
+        if (removed) {
+          await removeDealAssociationState(event.portalId, dealId, companyId);
+        } else {
+          await markDealAssociated(event.portalId, dealId, companyId, occurredAt);
+        }
         await recalculateCompany(event.portalId, companyId, {
           ...event,
           renewalAction: removed ? 'association-removed' : 'association-added',
@@ -96,6 +101,13 @@ async function recalculateForEvent(event) {
       console.log(`[webhook] No associated company was available for ${event.objectType || event.objectTypeId} ${event.objectId}.`);
       return;
     }
+    if (dealEvent && event.subscriptionType === 'object.propertyChange' && event.propertyName === 'dealstage') {
+      companyIds = await filterInitializedDealStageCompanies(event, companyIds);
+      if (!companyIds.length) {
+        console.log(`[webhook] Ignored initial dealstage notification for Deal ${event.objectId}.`);
+        return;
+      }
+    }
     await Promise.all(companyIds.map((companyId) => recalculateCompany(event.portalId, companyId, event)));
   } catch (error) {
     // Leave failed deliveries eligible for HubSpot's retry rather than losing points.
@@ -106,8 +118,10 @@ async function recalculateForEvent(event) {
 
 async function recalculateCompany(portalId, companyId, event) {
   if (!(await acquireCompanyScoreLock(portalId, companyId))) {
-    console.log(`[webhook] Company ${companyId} is locked; requesting a retry instead of creating another score record.`);
-    throw new Error(`Scoring for Company ${companyId} is already in progress; HubSpot should retry this event.`);
+    // Another notification for the same CRM action owns the Company lock.
+    // It will write the score, so acknowledge this redundant delivery.
+    console.log(`[webhook] Company ${companyId} is locked; another delivery is writing its score.`);
+    return;
   }
   console.log(`[webhook] Acquired score lock for Company ${companyId}.`);
   try {
@@ -216,4 +230,18 @@ function getDealCompanyAssociation(event) {
     return { dealId: String(event.toObjectId), companyId: String(event.fromObjectId), removed };
   }
   return null;
+}
+
+async function filterInitializedDealStageCompanies(event, companyIds) {
+  const eventTime = Number(event.occurredAt || event.createdAt || event.label || Date.now());
+  const initialized = await Promise.all(companyIds.map(async (companyId) => {
+    const associatedAt = await getDealAssociationTime(event.portalId, event.objectId, companyId);
+    if (associatedAt == null) {
+      // First observed stage value establishes state; it is not a stage move.
+      await markDealAssociated(event.portalId, event.objectId, companyId, eventTime);
+      return false;
+    }
+    return Math.abs(eventTime - associatedAt) > 10000;
+  }));
+  return companyIds.filter((_, index) => initialized[index]);
 }

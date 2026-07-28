@@ -10,11 +10,6 @@
       "crmObjects": [
         {
           "subscriptionType": "object.associationChange",
-          "objectType": "company",
-          "active": true
-        },
-        {
-          "subscriptionType": "object.associationChange",
           "objectType": "deal",
           "active": true
         },
