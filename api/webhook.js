@@ -1,6 +1,6 @@
 const { hubspotRequest } = require('./lib/hubspot.js');
 const { calculateRenewalRisk } = require('./lib/renewal-score.js');
-const { claimWebhookEvent, claimAssociationTransition, releaseAssociationTransition, releaseWebhookEvent } = require('./lib/token-store.js');
+const { claimWebhookEvent, claimAssociationTransition, releaseAssociationTransition, acquireCompanyScoreLock, releaseCompanyScoreLock, releaseWebhookEvent } = require('./lib/token-store.js');
 const SCORE_OBJECT_TYPE = '1-12815455';
 const APP_ID = '45236293';
 
@@ -8,7 +8,7 @@ module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST required' });
   try {
     const events = Array.isArray(req.body) ? req.body : [];
-    console.log(`[webhook] Renewal Radar scorer v1 received ${events.length} event(s).`);
+    console.log(`[webhook] Renewal Radar scorer v2.2-single-company-record received ${events.length} event(s).`);
     console.log(`[webhook] Raw payload: ${JSON.stringify(events)}`);
     for (const event of events) {
       console.log(`[webhook] Event ${event.subscriptionType} for ${event.objectType || event.objectTypeId || 'unknown'} ${event.objectId}.`);
@@ -105,13 +105,29 @@ async function recalculateForEvent(event) {
 }
 
 async function recalculateCompany(portalId, companyId, event) {
+  if (!(await acquireCompanyScoreLock(portalId, companyId))) {
+    console.log(`[webhook] Company ${companyId} is locked; requesting a retry instead of creating another score record.`);
+    throw new Error(`Scoring for Company ${companyId} is already in progress; HubSpot should retry this event.`);
+  }
+  console.log(`[webhook] Acquired score lock for Company ${companyId}.`);
+  try {
+    return await writeCompanyScore(portalId, companyId, event);
+  } finally {
+    await releaseCompanyScoreLock(portalId, companyId);
+  }
+}
+
+async function writeCompanyScore(portalId, companyId, event) {
   console.log(`[webhook] Recalculating Company ${companyId}.`);
-  const [tickets, deals] = await Promise.all(['tickets', 'deals'].map((type) => hubspotRequest(portalId, `/crm/v4/objects/companies/${companyId}/associations/${type}`)));
+  const [tickets, deals, company] = await Promise.all([
+    ...['tickets', 'deals'].map((type) => hubspotRequest(portalId, `/crm/v4/objects/companies/${companyId}/associations/${type}`)),
+    hubspotRequest(portalId, `/crm/v3/objects/companies/${companyId}?properties=name`),
+  ]);
   const openTickets = (tickets.results || []).length;
   const dealIds = (deals.results || []).map(({ toObjectId }) => toObjectId);
   const deal = dealIds[0] ? await hubspotRequest(portalId, `/crm/v3/objects/deals/${dealIds[0]}?properties=dealstage`) : null;
-  const properties = { [`a${APP_ID}_company_id`]: String(companyId), [`a${APP_ID}_company_name`]: String(companyId), [`a${APP_ID}_open_tickets`]: String(openTickets), [`a${APP_ID}_overdue_deals`]: '0', [`a${APP_ID}_engagement_count`]: '0', [`a${APP_ID}_last_calculated`]: new Date().toISOString().slice(0, 10) };
-  const search = await hubspotRequest(portalId, `/crm/v3/objects/${SCORE_OBJECT_TYPE}/search`, { method: 'POST', body: JSON.stringify({ filterGroups: [{ filters: [{ propertyName: `a${APP_ID}_company_id`, operator: 'EQ', value: String(companyId) }] }], properties: [`a${APP_ID}_score`] }) });
+  const properties = { [`a${APP_ID}_company_id`]: String(companyId), [`a${APP_ID}_company_name`]: company.properties?.name || `Company ${companyId}`, [`a${APP_ID}_open_tickets`]: String(openTickets), [`a${APP_ID}_overdue_deals`]: '0', [`a${APP_ID}_engagement_count`]: '0', [`a${APP_ID}_last_calculated`]: new Date().toISOString().slice(0, 10) };
+  const search = await hubspotRequest(portalId, `/crm/v3/objects/${SCORE_OBJECT_TYPE}/search`, { method: 'POST', body: JSON.stringify({ filterGroups: [{ filters: [{ propertyName: `a${APP_ID}_company_id`, operator: 'EQ', value: String(companyId) }] }], sorts: ['createdate'], properties: [`a${APP_ID}_score`] }) });
   const previous = search.results?.[0]?.properties?.[`a${APP_ID}_score`];
   const isDealEvent = isDealWebhookEvent(event);
   const associationAdded = event.renewalAction === 'association-added';

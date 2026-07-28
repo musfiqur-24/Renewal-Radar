@@ -2,6 +2,7 @@ const key = (portalId) => `renewal-radar:oauth:${portalId}`;
 const webhookKey = (portalId, eventKey) => `renewal-radar:webhook:${portalId}:${eventKey}`;
 const associationKey = (portalId, companyId, dealId, removed, occurredAt) =>
   `renewal-radar:association:${portalId}:${companyId}:${dealId}:${removed}:${occurredAt}`;
+const companyLockKey = (portalId, companyId) => `renewal-radar:score-lock:${portalId}:${companyId}`;
 
 async function kv(command) {
   const url = process.env.KV_REST_API_URL;
@@ -37,6 +38,15 @@ async function releaseAssociationTransition(portalId, companyId, dealId, removed
   await kv(['del', associationKey(portalId, companyId, dealId, removed, occurredAt)]);
 }
 
+async function acquireCompanyScoreLock(portalId, companyId) {
+  const response = await kv(['set', companyLockKey(portalId, companyId), '1', 'NX', 'EX', '60']);
+  return response.result === 'OK';
+}
+
+async function releaseCompanyScoreLock(portalId, companyId) {
+  await kv(['del', companyLockKey(portalId, companyId)]);
+}
+
 async function releaseWebhookEvent(portalId, eventKey) {
   await kv(['del', webhookKey(portalId, eventKey)]);
 }
@@ -47,5 +57,7 @@ module.exports = {
   claimWebhookEvent,
   claimAssociationTransition,
   releaseAssociationTransition,
+  acquireCompanyScoreLock,
+  releaseCompanyScoreLock,
   releaseWebhookEvent,
 };
